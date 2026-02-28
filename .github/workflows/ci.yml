@@ -10,6 +10,9 @@ jobs:
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    env:
+      NO_COLOR: "1"
+      FORCE_COLOR: "0"
     strategy:
       fail-fast: false
       matrix:
@@ -30,7 +33,5 @@ jobs:
 
       - name: Run tests
         run: pytest
-        env:
-          NO_COLOR: "1"
 
 

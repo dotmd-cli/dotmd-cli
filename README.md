@@ -37,7 +37,7 @@ Fetch and share the AI instruction files that power your coding assistants.
 
 ## Install
 
-**Requires Python 3.8+**
+**Requires Python 3.9+**
 
 ```bash
 pip install dotmd
