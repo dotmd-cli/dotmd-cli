@@ -77,6 +77,10 @@ def _normalize_title(value: str) -> str:
     return title
 
 
+#: Default registry username used when no username is specified in the rule input.
+DEFAULT_USERNAME = "dotmd"
+
+
 def _resolve_get_target(
     api: DotmdAPI,
     *,
@@ -101,52 +105,8 @@ def _resolve_get_target(
     if username:
         return username, title
 
-    # Best-effort resolution for `dotmd get <title>` flows.
-    matches: List[Dict[str, Any]] = []
-    try:
-        matches = api.search_rules(title, limit=20)
-    except DotmdAPIError as exc:
-        _exit_with_api_error(exc)
-
-    if not matches:
-        _exit_with_error(
-            f"Could not resolve '{title}'. No rules found with that title.\n"
-            "  Try: dotmd search <keywords>\n"
-            "  Or:  dotmd get <username>/<title>",
-            code=2,
-        )
-
-    wanted = _normalize_title(title)
-    exact_matches = [
-        row
-        for row in matches
-        if isinstance(row.get("title"), str) and _normalize_title(str(row.get("title"))) == wanted
-    ]
-    candidates = exact_matches if exact_matches else matches
-
-    if len(candidates) == 1:
-        chosen = candidates[0]
-        chosen_username = chosen.get("username")
-        chosen_title = chosen.get("title")
-        if not isinstance(chosen_username, str) or not chosen_username.strip():
-            _exit_with_error(
-                f"Found a match for '{title}', but username metadata was missing.\n"
-                "  Retry with: dotmd get <username>/<title>",
-                code=2,
-            )
-        if isinstance(chosen_title, str) and chosen_title.strip():
-            return chosen_username.strip(), chosen_title.strip()
-        return chosen_username.strip(), title
-
-    _exit_with_error(
-        f"'{title}' is ambiguous — {len(candidates)} rules match.\n"
-        "  Use '<username>/<title>' to be specific, e.g.:\n"
-        + "\n".join(
-            f"    dotmd get {row.get('username', '?')}/{row.get('title', '?')}"
-            for row in candidates[:5]
-        ),
-        code=2,
-    )
+    # No username provided — default to the official dotmd registry namespace.
+    return DEFAULT_USERNAME, title
 
 
 def _write_output(destination: Path, content: str) -> None:
@@ -206,16 +166,16 @@ def get(
         ...,
         help=(
             "Rule to fetch. Formats accepted:\n\n"
-            "  <username>/<title>   e.g. dotmd/react-best-practices\n\n"
-            "  <title>              auto-resolved when unambiguous\n\n"
-            "Use --username to pair a bare title with a specific user."
+            "  <title>              fetches dotmd/<title> by default\n\n"
+            "  <username>/<title>   e.g. alice/react-best-practices\n\n"
+            "Use --username to fetch from a specific user other than dotmd."
         ),
     ),
     username: Optional[str] = typer.Option(
         None,
         "--username",
         "-u",
-        help="Registry username. Use when RULE is a bare title without a '/' prefix.",
+        help="Registry username. Overrides the default 'dotmd' namespace.",
         metavar="USER",
     ),
     output: Optional[Path] = typer.Option(
@@ -242,10 +202,13 @@ def get(
 
     \b
     Examples:
-      dotmd get dotmd/react-best-practices
-      dotmd get react-best-practices --username dotmd
-      dotmd get dotmd/react-best-practices --output .cursorrules
-      dotmd get dotmd/react-best-practices --dry-run
+      dotmd get hippa
+      dotmd get soc2
+      dotmd get react-best-practices
+      dotmd get alice/react-best-practices
+      dotmd get react-best-practices --username alice
+      dotmd get hippa --output .cursorrules
+      dotmd get hippa --dry-run
     """
     api = DotmdAPI()
     resolved_username, resolved_title = _resolve_get_target(

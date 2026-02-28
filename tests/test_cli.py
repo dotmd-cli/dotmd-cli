@@ -91,40 +91,29 @@ def test_get_command_supports_bare_title_with_username_option(monkeypatch: Any) 
         assert Path("CLAUDE.md").exists()
 
 
-def test_get_command_auto_resolves_bare_title(monkeypatch: Any) -> None:
-    class ResolveStubAPI(StubAPI):
+def test_get_command_bare_title_defaults_to_dotmd_namespace(monkeypatch: Any) -> None:
+    """dotmd get <title> should default to dotmd/<title> without any search call."""
+    class NoSearchStubAPI(StubAPI):
         def search_rules(self, keywords: Any, limit: int = 20) -> List[Dict[str, Any]]:
-            assert keywords == "react-best-practices.md"
-            return [
-                {
-                    "title": "react-best-practices.md",
-                    "format_type": "claude.md",
-                    "username": "dotmd",
-                }
-            ]
+            raise AssertionError("search_rules should not be called for bare title")
 
-    monkeypatch.setattr("dotmd.cli.DotmdAPI", ResolveStubAPI)
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", NoSearchStubAPI)
 
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["get", "react-best-practices.md"])
         assert result.exit_code == 0, result.output
-        assert "dotmd/react-best-practices.md" in result.stdout
         assert Path("CLAUDE.md").exists()
 
 
-def test_get_command_reports_ambiguous_bare_title(monkeypatch: Any) -> None:
-    class AmbiguousStubAPI(StubAPI):
-        def search_rules(self, keywords: Any, limit: int = 20) -> List[Dict[str, Any]]:
-            return [
-                {"title": "same.md", "format_type": "claude.md", "username": "dotmd"},
-                {"title": "same.md", "format_type": "agents.md", "username": "ibm"},
-            ]
+def test_get_command_bare_title_shows_resolved_namespace(monkeypatch: Any) -> None:
+    """dotmd get <title> output should show dotmd/<title> in the success message."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
 
-    monkeypatch.setattr("dotmd.cli.DotmdAPI", AmbiguousStubAPI)
-    result = runner.invoke(app, ["get", "same.md"])
-    assert result.exit_code == 2
-    assert "ambiguous" in result.stderr.lower()
-    assert "dotmd/same.md" in result.stderr
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["get", "react-best-practices.md"])
+        assert result.exit_code == 0, result.output
+        assert "dotmd/react-best-practices" in result.stdout
+        assert Path("CLAUDE.md").exists()
 
 
 def test_get_command_refuses_overwrite_without_force(monkeypatch: Any) -> None:
