@@ -30,5 +30,7 @@ jobs:
 
       - name: Run tests
         run: pytest
+        env:
+          NO_COLOR: "1"
 
-# Made with Bob
+
