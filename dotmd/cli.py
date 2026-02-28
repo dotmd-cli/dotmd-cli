@@ -13,7 +13,7 @@ import typer
 from .__init__ import __version__
 from .api import DotmdAPI, DotmdAPIError
 from .art import build_banner
-from .formats import FORMAT_TO_PATH, output_path_for_format
+from .formats import FORMAT_TO_PATH, output_path_for_format, resolve_tool_alias
 
 app = typer.Typer(
     help="Fetch and manage AI instruction files from mydotmd.io",
@@ -171,6 +171,15 @@ def get(
             "Use --username to fetch from a specific user other than dotmd."
         ),
     ),
+    tool: Optional[str] = typer.Argument(
+        None,
+        help=(
+            "Target tool to write the rule for. Overrides the format from the registry.\n\n"
+            "  cursor  windsurf  claude  copilot  cline  aider  gemini  continue\n\n"
+            "Example: dotmd get hippa cursor  →  writes to .cursorrules"
+        ),
+        metavar="TOOL",
+    ),
     username: Optional[str] = typer.Option(
         None,
         "--username",
@@ -203,13 +212,26 @@ def get(
     \b
     Examples:
       dotmd get hippa
-      dotmd get soc2
-      dotmd get react-best-practices
+      dotmd get hippa cursor
+      dotmd get soc2 windsurf
+      dotmd get react-best-practices claude
       dotmd get alice/react-best-practices
       dotmd get react-best-practices --username alice
       dotmd get hippa --output .cursorrules
       dotmd get hippa --dry-run
     """
+    # Validate tool alias early so we fail fast before hitting the network.
+    tool_format_type: Optional[str] = None
+    if tool:
+        tool_format_type = resolve_tool_alias(tool)
+        if tool_format_type is None:
+            valid = ", ".join(sorted({"cursor", "windsurf", "claude", "copilot", "cline", "aider", "gemini", "continue"}))
+            _exit_with_error(
+                f"Unknown tool '{tool}'. Valid options: {valid}\n"
+                "  Example: dotmd get hippa cursor",
+                code=2,
+            )
+
     api = DotmdAPI()
     resolved_username, resolved_title = _resolve_get_target(
         api,
@@ -231,10 +253,12 @@ def get(
     except DotmdAPIError as exc:
         _exit_with_api_error(exc)
 
+    # Determine destination: --output > tool alias > registry format_type
+    effective_format = tool_format_type or record.format_type
     if output:
         destination = output.expanduser()
     else:
-        relative_path = output_path_for_format(record.format_type)
+        relative_path = output_path_for_format(effective_format)
         destination = Path.cwd() / relative_path
 
     if dry_run:
@@ -243,9 +267,10 @@ def get(
                 {
                     "dry_run": True,
                     "rule": rule,
+                    "tool": tool,
                     "username": resolved_username,
                     "title": resolved_title,
-                    "format_type": record.format_type,
+                    "format_type": effective_format,
                     "destination": str(destination),
                     "bytes": len(record.content.encode("utf-8")),
                     "would_overwrite": destination.exists(),
@@ -253,7 +278,8 @@ def get(
             )
         else:
             typer.echo(f"  rule:        {resolved_username}/{resolved_title}")
-            typer.echo(f"  format:      {record.format_type}")
+            typer.echo(f"  tool:        {tool or '(from registry)'}")
+            typer.echo(f"  format:      {effective_format}")
             typer.echo(f"  destination: {destination}")
             typer.echo(f"  size:        {len(record.content.encode('utf-8'))} bytes")
             if destination.exists():
@@ -277,9 +303,10 @@ def get(
             {
                 "status": "saved",
                 "rule": rule,
+                "tool": tool,
                 "username": resolved_username,
                 "title": resolved_title,
-                "format_type": record.format_type,
+                "format_type": effective_format,
                 "destination": str(destination),
                 "bytes": len(record.content.encode("utf-8")),
             }
@@ -287,13 +314,8 @@ def get(
         return
 
     if not quiet:
-        if "/" not in rule and not username:
-            typer.secho(
-                f"  Resolved '{rule}' → {resolved_username}/{resolved_title}",
-                fg=typer.colors.YELLOW,
-            )
         typer.secho(
-            f"  ✓ Saved {resolved_username}/{resolved_title} → {destination}  [{record.format_type}]",
+            f"  ✓ Saved {resolved_username}/{resolved_title} → {destination}  [{effective_format}]",
             fg=typer.colors.GREEN,
         )
 

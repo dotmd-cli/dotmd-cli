@@ -116,6 +116,62 @@ def test_get_command_bare_title_shows_resolved_namespace(monkeypatch: Any) -> No
         assert Path("CLAUDE.md").exists()
 
 
+def test_get_command_tool_arg_cursor(monkeypatch: Any) -> None:
+    """dotmd get <rule> cursor  →  writes to .cursorrules regardless of registry format."""
+    class CursorStubAPI(StubAPI):
+        def get_rule(self, user_id: str, title: str) -> Any:
+            class Rule:
+                content = "# React Best Practices"
+                format_type = "claude.md"  # registry says claude.md
+            return Rule()
+
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", CursorStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["get", "dotmd/react-best-practices", "cursor"])
+        assert result.exit_code == 0, result.output
+        # Should write to .cursorrules, NOT CLAUDE.md
+        assert Path(".cursorrules").exists()
+        assert not Path("CLAUDE.md").exists()
+        assert "# React Best Practices" in Path(".cursorrules").read_text(encoding="utf-8")
+
+
+def test_get_command_tool_arg_windsurf(monkeypatch: Any) -> None:
+    """dotmd get <rule> windsurf  →  writes to .windsurfrules."""
+    class WindsurfStubAPI(StubAPI):
+        def get_rule(self, user_id: str, title: str) -> Any:
+            class Rule:
+                content = "# React Best Practices"
+                format_type = "claude.md"
+            return Rule()
+
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", WindsurfStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["get", "dotmd/react-best-practices", "windsurf"])
+        assert result.exit_code == 0, result.output
+        assert Path(".windsurfrules").exists()
+
+
+def test_get_command_tool_arg_invalid(monkeypatch: Any) -> None:
+    """dotmd get <rule> badtool  →  exits with error."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
+    result = runner.invoke(app, ["get", "dotmd/react-best-practices", "badtool"])
+    assert result.exit_code == 2
+    assert "unknown tool" in result.stderr.lower()
+
+
+def test_get_command_tool_arg_dry_run(monkeypatch: Any) -> None:
+    """dotmd get <rule> cursor --dry-run  →  shows .cursorrules destination."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["get", "dotmd/react-best-practices", "cursor", "--dry-run"])
+        assert result.exit_code == 0, result.output
+        assert ".cursorrules" in result.stdout
+        assert not Path(".cursorrules").exists()
+
+
 def test_get_command_refuses_overwrite_without_force(monkeypatch: Any) -> None:
     monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
 
