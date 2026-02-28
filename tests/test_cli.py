@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from unittest.mock import patch
@@ -12,6 +13,11 @@ from typer.testing import CliRunner
 from dotmd.cli import app
 
 runner = CliRunner()
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences from text."""
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
 # ── Stub API ──────────────────────────────────────────────────────────────────
@@ -374,20 +380,21 @@ def test_help_shows_commands() -> None:
 def test_get_help_shows_examples() -> None:
     result = runner.invoke(app, ["get", "--help"])
     assert result.exit_code == 0, result.output
-    assert "--dry-run" in result.stdout
-    assert "--force" in result.stdout
-    assert "--output" in result.stdout
+    stdout = _strip_ansi(result.stdout)
+    assert "--dry-run" in stdout
+    assert "--force" in stdout
+    assert "--output" in stdout
 
 
 def test_search_help() -> None:
     result = runner.invoke(app, ["search", "--help"])
     assert result.exit_code == 0, result.output
-    assert "--limit" in result.stdout
+    assert "--limit" in _strip_ansi(result.stdout)
 
 
 def test_list_help() -> None:
     result = runner.invoke(app, ["list", "--help"])
     assert result.exit_code == 0, result.output
-    assert "--limit" in result.stdout
+    assert "--limit" in _strip_ansi(result.stdout)
 
 # Made with Bob
