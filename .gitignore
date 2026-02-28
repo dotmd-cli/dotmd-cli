@@ -42,3 +42,4 @@ htmlcov/
 # Local scratch
 .tmp/
 
+.swift-cache/
