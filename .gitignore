@@ -2,21 +2,43 @@
 __pycache__/
 *.py[cod]
 *.so
+*.pyd
 
 # Virtual environments
 .venv/
 venv/
+env/
+.env
 
-# Packaging
+# Packaging / distribution
 build/
 dist/
 *.egg-info/
+*.egg
+MANIFEST
 
-# Test/cache artifacts
+# Test / coverage artifacts
 .pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# Type checkers
 .mypy_cache/
+.pyright/
+.ruff_cache/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # Local scratch
 .tmp/
-.swift-cache/
 

@@ -1,0 +1,141 @@
+# dotmd
+
+> The open `.md` registry for AI coding assistant instruction files.
+
+dotmd is a CLI tool and open registry at [mydotmd.io](https://mydotmd.io) for sharing `.md` instruction files — the rule files that configure AI coding assistants like Cursor, Claude, Windsurf, GitHub Copilot, and others.
+
+## What is dotmd?
+
+AI coding assistants are configured by plain-text markdown files placed in your project:
+
+- `.cursorrules` — Cursor
+- `CLAUDE.md` — Claude Code
+- `.windsurfrules` — Windsurf
+- `AGENTS.md` — OpenAI Codex / Agents
+- `.github/copilot-instructions.md` — GitHub Copilot
+- `GEMINI.md` — Gemini CLI
+- `.clinerules` — Cline
+- `.aider.conf.yml` — Aider
+- `.continue/config.json` — Continue
+
+dotmd is a registry where developers publish and share these files. Think of it like Docker Hub, but for `.md` instruction files.
+
+## CLI
+
+The `dotmd` CLI lets you browse, search, and fetch instruction files from the registry directly into your project.
+
+### Install
+
+```bash
+pip install dotmd
+```
+
+### Commands
+
+```
+dotmd list                          List all public rules in the registry
+dotmd list <username>               List rules for a specific user
+dotmd search <keywords>             Search rules by keyword
+dotmd get <username>/<title>        Fetch a rule and write it to the correct local file
+dotmd get <title> --username <user> Fetch by title with explicit username
+dotmd info                          Show version, registry info, and supported formats
+```
+
+### Examples
+
+```bash
+# Browse everything
+dotmd list
+
+# Search for React rules
+dotmd search react typescript
+
+# Fetch a rule (writes to .cursorrules, CLAUDE.md, etc. based on format)
+dotmd get dotmd/react-best-practices
+
+# Preview where a rule would be written without writing it
+dotmd get dotmd/react-best-practices --dry-run
+
+# Write to a custom path
+dotmd get dotmd/react-best-practices --output .cursorrules
+
+# Overwrite an existing file
+dotmd get dotmd/react-best-practices --force
+
+# Machine-readable JSON output (useful for scripting and LLM tool use)
+dotmd get dotmd/react-best-practices --json
+
+# Suppress all output
+dotmd get dotmd/react-best-practices --quiet
+```
+
+### Output file mapping
+
+When you run `dotmd get`, the rule is written to the standard location for its format:
+
+| Format | Written to |
+|--------|-----------|
+| `claude.md` | `CLAUDE.md` |
+| `cursorrules` | `.cursorrules` |
+| `windsurfrules` | `.windsurfrules` |
+| `agents.md` | `AGENTS.md` |
+| `copilot` | `.github/copilot-instructions.md` |
+| `gemini` | `GEMINI.md` |
+| `cline` | `.clinerules` |
+| `aider` | `.aider.conf.yml` |
+| `continue` | `.continue/config.json` |
+
+### JSON output
+
+Every command supports `--json` for structured output:
+
+```bash
+dotmd search react --json
+# {"results": [{"id": "...", "title": "react-best-practices", "username": "dotmd", ...}]}
+
+dotmd get dotmd/react-best-practices --json
+# {"title": "react-best-practices", "username": "dotmd", "destination": ".cursorrules", "written": true}
+
+dotmd get dotmd/react-best-practices --dry-run --json
+# {"title": "react-best-practices", "username": "dotmd", "destination": ".cursorrules", "written": false}
+```
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | API or network error |
+| `2` | Usage error (bad arguments, file exists without `--force`, ambiguous title) |
+| `130` | Interrupted |
+
+### LLM / automation notes
+
+- When stdout is not a TTY (piped, redirected, or called by a tool), the ASCII art banner is automatically suppressed.
+- Set `NO_COLOR=1` to disable all ANSI color codes ([no-color.org](https://no-color.org/)).
+- Use `--json` for all structured output — the schema is stable.
+- Use `--dry-run` to check where a file would be written before committing.
+- Use `--quiet` to suppress all non-error output in scripts.
+
+## Registry API
+
+The registry is backed by a public Supabase REST API. You can query it directly:
+
+```
+GET https://mydotmd.io  →  auto-discovers the current Supabase endpoint
+```
+
+Environment variables:
+
+```bash
+DOTMD_SUPABASE_ANON_KEY   # Supabase anon key (required for authenticated registries)
+DOTMD_SUPABASE_BASE_URL   # Override the Supabase REST base URL
+DOTMD_API_KEY             # Alias for DOTMD_SUPABASE_ANON_KEY
+DOTMD_BASE_URL            # Alias for DOTMD_SUPABASE_BASE_URL
+```
+
+## Source
+
+- GitHub: https://github.com/dotmd/dotmd-cli
+- PyPI: https://pypi.org/project/dotmd/
+- Registry: https://mydotmd.io

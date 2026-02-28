@@ -1,17 +1,39 @@
-"""Mappings from registry format types to output paths."""
+"""Mappings from registry format types to local output paths."""
 
-FORMAT_TO_PATH = {
+FORMAT_TO_PATH: dict[str, str] = {
+    # Anthropic Claude
     "claude.md": "CLAUDE.md",
+    # Cursor IDE
     "cursorrules": ".cursorrules",
+    # Windsurf IDE
     "windsurfrules": ".windsurfrules",
+    # OpenAI Codex / generic agents
     "agents.md": "AGENTS.md",
+    # GitHub Copilot
     "copilot": ".github/copilot-instructions.md",
+    # Google Gemini CLI
+    "gemini": "GEMINI.md",
+    # Cline (VS Code extension)
+    "cline": ".clinerules",
+    # Aider
+    "aider": ".aider.conf.yml",
+    # Continue.dev
+    "continue": ".continue/config.json",
 }
 
 
 def output_path_for_format(format_type: str) -> str:
-    """Return destination path for a format type.
+    """Return the local destination path for a given registry format type.
 
-    Falls back to AGENTS.md if the API returns an unknown format.
+    Falls back to ``AGENTS.md`` for unknown or missing format types so that
+    fetched content is always written somewhere useful.
+
+    Args:
+        format_type: The ``format_type`` string returned by the registry API.
+
+    Returns:
+        A relative path string suitable for writing under the current directory.
     """
     return FORMAT_TO_PATH.get((format_type or "").strip().lower(), "AGENTS.md")
+
+# Made with Bob
