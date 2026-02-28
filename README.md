@@ -17,35 +17,6 @@ Fetch and share the AI instruction files that power your coding assistants.
 
 `dotmd` is a command-line tool for the [mydotmd.io](https://mydotmd.io) registry — like Docker Hub, but for `.md` instruction files. Browse, search, and pull the rules that configure AI coding assistants like Cursor, Claude, Windsurf, Copilot, and more.
 
-```
-╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
-│                                                                                                            │
-│        .~~~~~~~~~~~~~~~~~~~~~~.      _________     _____           _________                              │
-│      .'                        '.    ______  /_______  /_______ _________  /                              │
-│     /    ( O )          ( O )    \   _  __  /_  __ \  __/_  __ `__ \  __  /                              │
-│    |                              |  / /_/ / / /_/ / /_ _  / / / / / /_/ /                               │
-│    |        _______________       |  \__,_/  \____/\__/ /_/ /_/ /_/\__,_/                                │
-│    |       /               \      |    The open registry for AI coding assistant rules                    │
-│    |      |  ~ ~ ~ ~ ~ ~ ~  |     |                                                                       │
-│    |       \_______________/      |  Like Docker Hub, but for .md files.                                  │
-│     \                            /                                                                        │
-│      '.                        .'   Quick start                                                           │
-│   .----'------------------------'----.  ────────────────────────────                                      │
-│  /  o                                 \   $ dotmd list              browse the registry                   │
-│ | (o)      .----------------------.    |  $ dotmd search <query>    find rules                            │
-│ |  |       |  ##  claude.md       |    |  $ dotmd get <user>/<rule> install a rule                        │
-│ |          |  ##  .cursorrules    |    |  $ dotmd info <user>/<rule> inspect a rule                       │
-│ |          |  ##  windsurf.md     |    |                                                                   │
-│ |          '----------------------'    |    mydotmd.io  ·  github.com/dotmd-cli/dotmd-cli                 │
-│  \                                   /                                                                    │
-│   '-----------.         .----------'                                                                      │
-│                |         |                                                                                 │
-│               _|_       _|_                                                                               │
-│              /   \     /   \                                                                              │
-│                                                                                                            │
-╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
-```
-
 ---
 
 ## Table of Contents
