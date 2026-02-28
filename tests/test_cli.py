@@ -12,7 +12,7 @@ from typer.testing import CliRunner
 
 from dotmd.cli import app
 
-runner = CliRunner()
+runner = CliRunner(env={"NO_COLOR": "1", "FORCE_COLOR": "0"})
 
 
 def _strip_ansi(text: str) -> str:
