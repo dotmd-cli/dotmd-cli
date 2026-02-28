@@ -8,7 +8,7 @@ Fetch and share the AI instruction files that power your coding assistants.
 
 [![PyPI version](https://img.shields.io/pypi/v/dotmd.svg)](https://pypi.org/project/dotmd/)
 [![Python versions](https://img.shields.io/pypi/pyversions/dotmd.svg)](https://pypi.org/project/dotmd/)
-[![CI](https://github.com/dotmd/dotmd-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/dotmd/dotmd-cli/actions/workflows/ci.yml)
+[![CI](https://github.com/dotmd-cli/dotmd-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/dotmd-cli/dotmd-cli/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 </div>
@@ -18,15 +18,32 @@ Fetch and share the AI instruction files that power your coding assistants.
 `dotmd` is a command-line tool for the [mydotmd.io](https://mydotmd.io) registry — like Docker Hub, but for `.md` instruction files. Browse, search, and pull the rules that configure AI coding assistants like Cursor, Claude, Windsurf, Copilot, and more.
 
 ```
-╭──────────────────────────────────────────────────────────────────────╮
-│   ____        _                    _                                 │
-│  |  _ \  ___ | |_  _ __ ___   __| |                                  │
-│  | | | |/ _ \| __|| '_ ` _ \ / _` |                                  │
-│  | |_| | (_) | |_ | | | | | | (_| |                                  │
-│  |____/ \___/ \__||_| |_| |_|\__,_|                                  │
-│                                                                      │
-│  Share your .md instruction files.                                   │
-╰──────────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│                                                                                                            │
+│        .~~~~~~~~~~~~~~~~~~~~~~.      _________     _____           _________                              │
+│      .'                        '.    ______  /_______  /_______ _________  /                              │
+│     /    ( O )          ( O )    \   _  __  /_  __ \  __/_  __ `__ \  __  /                              │
+│    |                              |  / /_/ / / /_/ / /_ _  / / / / / /_/ /                               │
+│    |        _______________       |  \__,_/  \____/\__/ /_/ /_/ /_/\__,_/                                │
+│    |       /               \      |    The open registry for AI coding assistant rules                    │
+│    |      |  ~ ~ ~ ~ ~ ~ ~  |     |                                                                       │
+│    |       \_______________/      |  Like Docker Hub, but for .md files.                                  │
+│     \                            /                                                                        │
+│      '.                        .'   Quick start                                                           │
+│   .----'------------------------'----.  ────────────────────────────                                      │
+│  /  o                                 \   $ dotmd list              browse the registry                   │
+│ | (o)      .----------------------.    |  $ dotmd search <query>    find rules                            │
+│ |  |       |  ##  claude.md       |    |  $ dotmd get <user>/<rule> install a rule                        │
+│ |          |  ##  .cursorrules    |    |  $ dotmd info <user>/<rule> inspect a rule                       │
+│ |          |  ##  windsurf.md     |    |                                                                   │
+│ |          '----------------------'    |    mydotmd.io  ·  github.com/dotmd-cli/dotmd-cli                 │
+│  \                                   /                                                                    │
+│   '-----------.         .----------'                                                                      │
+│                |         |                                                                                 │
+│               _|_       _|_                                                                               │
+│              /   \     /   \                                                                              │
+│                                                                                                            │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ```
 
 ---
