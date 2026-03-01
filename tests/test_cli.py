@@ -209,7 +209,7 @@ def test_get_command_tool_arg_invalid(monkeypatch: Any) -> None:
     monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
     result = runner.invoke(app, ["get", "dotmd/react-best-practices", "badtool"])
     assert result.exit_code == 2
-    assert "unknown tool" in result.stderr.lower()
+    assert "unknown tool" in result.output.lower()
 
 
 def test_get_command_tool_arg_dry_run(monkeypatch: Any) -> None:
@@ -233,7 +233,7 @@ def test_get_command_refuses_overwrite_without_force(monkeypatch: Any) -> None:
         Path("CLAUDE.md").write_text("existing", encoding="utf-8")
         result = runner.invoke(app, ["get", "dotmd/react-best-practices.md"])
         assert result.exit_code == 2
-        assert "Use --force to overwrite" in result.stderr
+        assert "Use --force to overwrite" in result.output
 
 
 def test_get_command_auto_force_in_non_tty(monkeypatch: Any) -> None:
@@ -366,7 +366,7 @@ def test_get_command_rejects_both_slash_and_username(monkeypatch: Any) -> None:
         app, ["get", "dotmd/react-best-practices", "--username", "dotmd"]
     )
     assert result.exit_code == 2
-    assert "not both" in result.stderr.lower()
+    assert "not both" in result.output.lower()
 
 
 # ── search command ────────────────────────────────────────────────────────────
@@ -660,7 +660,7 @@ def test_find_command_no_results(monkeypatch: Any) -> None:
     with runner.isolated_filesystem():
         result = runner.invoke(app, ["find", "xyzzy", "nonexistent"])
         assert result.exit_code == 1
-        assert "No rules found" in result.stderr
+        assert "No rules found" in result.output
 
 
 def test_find_command_no_results_json(monkeypatch: Any) -> None:
@@ -701,7 +701,7 @@ def test_find_command_refuses_overwrite_in_tty(monkeypatch: Any) -> None:
         Path(".dotmd/cli-ux.md").write_text("existing", encoding="utf-8")
         result = runner.invoke(app, ["find", "cli", "ux"])
         assert result.exit_code == 2
-        assert "Use --force to overwrite" in result.stderr
+        assert "Use --force to overwrite" in result.output
 
 
 def test_find_command_custom_output(monkeypatch: Any) -> None:
