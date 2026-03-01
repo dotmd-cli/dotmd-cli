@@ -471,7 +471,7 @@ def test_info_command_plain_shows_version() -> None:
     result = runner.invoke(app, ["info", "--plain"])
     assert result.exit_code == 0, result.output
     assert "Version:" in result.stdout
-    assert "0.1.1" in result.stdout
+    assert "0.1.2" in result.stdout
     assert "Registry:" in result.stdout
     assert "mydotmd.io" in result.stdout
 
@@ -488,7 +488,7 @@ def test_info_command_json() -> None:
     result = runner.invoke(app, ["info", "--json"])
     assert result.exit_code == 0, result.output
     data = json.loads(result.stdout)
-    assert data["version"] == "0.1.1"
+    assert data["version"] == "0.1.2"
     assert "base_url" in data["config"]
     assert "formats" in data
     assert "claude.md" in data["formats"]
@@ -510,13 +510,13 @@ def test_info_command_banner_skipped_in_non_tty() -> None:
 def test_version_flag() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0, result.output
-    assert "dotmd 0.1.1" in result.stdout
+    assert "dotmd 0.1.2" in result.stdout
 
 
 def test_version_flag_short() -> None:
     result = runner.invoke(app, ["-V"])
     assert result.exit_code == 0, result.output
-    assert "dotmd 0.1.1" in result.stdout
+    assert "dotmd 0.1.2" in result.stdout
 
 
 # ── help ──────────────────────────────────────────────────────────────────────
