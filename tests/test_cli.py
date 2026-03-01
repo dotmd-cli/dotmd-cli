@@ -735,4 +735,3 @@ def test_find_help_shows_options() -> None:
     assert "--output" in stdout
 
 
-# Made with Bob
