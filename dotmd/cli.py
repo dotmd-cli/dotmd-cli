@@ -195,7 +195,21 @@ def get(
         metavar="PATH",
     ),
     force: bool = typer.Option(
-        False, "--force", "-f", help="Overwrite destination file if it already exists."
+        False,
+        "--force",
+        "-f",
+        help=(
+            "Overwrite destination file if it already exists. "
+            "Automatically enabled when stdout is not a TTY (scripts, LLM agents, CI)."
+        ),
+    ),
+    print_only: bool = typer.Option(
+        False,
+        "--print",
+        help=(
+            "Print the rule content to stdout instead of writing a file. "
+            "Ideal for LLM agents and scripts that need to read the content directly."
+        ),
     ),
     dry_run: bool = typer.Option(
         False,
@@ -204,10 +218,21 @@ def get(
     ),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress non-error output."),
     json_output: bool = typer.Option(
-        False, "--json", help="Emit machine-readable JSON to stdout."
+        False,
+        "--json",
+        help=(
+            "Emit machine-readable JSON to stdout. "
+            "Includes 'content' field with the full rule text."
+        ),
     ),
 ) -> None:
     """Fetch a rule from the registry and write it to a local instruction file.
+
+    \b
+    LLM / agent usage:
+      dotmd get cli-ux --print          Print content to stdout (no file written)
+      dotmd get cli-ux --json           JSON with full content field
+      dotmd get cli-ux                  Auto-overwrites in non-TTY environments
 
     \b
     Examples:
@@ -219,6 +244,8 @@ def get(
       dotmd get react-best-practices --username alice
       dotmd get hippa --output .cursorrules
       dotmd get hippa --dry-run
+      dotmd get cli-ux --print
+      dotmd get cli-ux --json
     """
     # Validate tool alias early so we fail fast before hitting the network.
     tool_format_type: Optional[str] = None
@@ -232,6 +259,10 @@ def get(
                 code=2,
             )
 
+    # In non-TTY environments (LLM agents, scripts, CI), auto-enable --force so
+    # the command never blocks on "file already exists".
+    effective_force = force or not _is_tty()
+
     api = DotmdAPI()
     resolved_username, resolved_title = _resolve_get_target(
         api,
@@ -242,7 +273,7 @@ def get(
     record: Any = None
     try:
         with _progress(
-            enabled=not quiet and not json_output,
+            enabled=not quiet and not json_output and not print_only,
             length=2,
             label=f"Fetching {resolved_username}/{resolved_title}",
         ) as progress:
@@ -252,6 +283,11 @@ def get(
             progress.update(1)
     except DotmdAPIError as exc:
         _exit_with_api_error(exc)
+
+    # --print: dump content to stdout and exit — no file written
+    if print_only:
+        typer.echo(record.content, nl=False)
+        return
 
     # Determine destination: --output > tool alias > registry format_type
     effective_format = tool_format_type or record.format_type
@@ -274,6 +310,7 @@ def get(
                     "destination": str(destination),
                     "bytes": len(record.content.encode("utf-8")),
                     "would_overwrite": destination.exists(),
+                    "content": record.content,
                 }
             )
         else:
@@ -289,7 +326,7 @@ def get(
                 )
         return
 
-    if destination.exists() and not force:
+    if destination.exists() and not effective_force:
         _exit_with_error(
             f"Destination already exists: {destination}\n"
             f"  Use --force to overwrite, or --output to choose a different path.",
@@ -309,6 +346,7 @@ def get(
                 "format_type": effective_format,
                 "destination": str(destination),
                 "bytes": len(record.content.encode("utf-8")),
+                "content": record.content,
             }
         )
         return

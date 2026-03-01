@@ -173,13 +173,69 @@ def test_get_command_tool_arg_dry_run(monkeypatch: Any) -> None:
 
 
 def test_get_command_refuses_overwrite_without_force(monkeypatch: Any) -> None:
+    """In TTY mode (interactive), overwrite is blocked without --force."""
     monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
+    # Simulate a TTY so auto-force does NOT kick in
+    monkeypatch.setattr("dotmd.cli._is_tty", lambda: True)
 
     with runner.isolated_filesystem():
         Path("CLAUDE.md").write_text("existing", encoding="utf-8")
         result = runner.invoke(app, ["get", "dotmd/react-best-practices.md"])
         assert result.exit_code == 2
         assert "Use --force to overwrite" in result.stderr
+
+
+def test_get_command_auto_force_in_non_tty(monkeypatch: Any) -> None:
+    """In non-TTY mode (LLM agents, scripts), overwrite happens automatically."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
+    # CliRunner is non-TTY by default — auto-force should kick in
+
+    with runner.isolated_filesystem():
+        Path("CLAUDE.md").write_text("existing", encoding="utf-8")
+        result = runner.invoke(app, ["get", "dotmd/react-best-practices.md"])
+        assert result.exit_code == 0, result.output
+        assert "# React Best Practices" in Path("CLAUDE.md").read_text(encoding="utf-8")
+
+
+def test_get_command_print_flag(monkeypatch: Any) -> None:
+    """--print outputs content to stdout without writing a file."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["get", "dotmd/react-best-practices.md", "--print"])
+        assert result.exit_code == 0, result.output
+        assert "# React Best Practices" in result.stdout
+        # No file should be written
+        assert not Path("CLAUDE.md").exists()
+
+
+def test_get_command_json_includes_content(monkeypatch: Any) -> None:
+    """--json output includes 'content' field with the full rule text."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["get", "dotmd/react-best-practices.md", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.stdout)
+        assert data["status"] == "saved"
+        assert "content" in data
+        assert "# React Best Practices" in data["content"]
+
+
+def test_get_command_dry_run_json_includes_content(monkeypatch: Any) -> None:
+    """--dry-run --json output includes 'content' field."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            app, ["get", "dotmd/react-best-practices.md", "--dry-run", "--json"]
+        )
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.stdout)
+        assert data["dry_run"] is True
+        assert "content" in data
+        assert "# React Best Practices" in data["content"]
+        assert not Path("CLAUDE.md").exists()
 
 
 def test_get_command_force_overwrites(monkeypatch: Any) -> None:

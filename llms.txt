@@ -36,8 +36,9 @@ pip install dotmd
 dotmd list                          List all public rules in the registry
 dotmd list <username>               List rules for a specific user
 dotmd search <keywords>             Search rules by keyword
-dotmd get <username>/<title>        Fetch a rule and write it to the correct local file
-dotmd get <title> --username <user> Fetch by title with explicit username
+dotmd get <title>                   Fetch dotmd/<title> (default namespace)
+dotmd get <username>/<title>        Fetch a specific user's rule
+dotmd get <title> <tool>            Fetch and write for a specific tool
 dotmd info                          Show version, registry info, and supported formats
 ```
 
@@ -47,27 +48,71 @@ dotmd info                          Show version, registry info, and supported f
 # Browse everything
 dotmd list
 
-# Search for React rules
+# Search for rules
 dotmd search react typescript
+dotmd search hipaa compliance
 
-# Fetch a rule (writes to .cursorrules, CLAUDE.md, etc. based on format)
-dotmd get dotmd/react-best-practices
+# Fetch a rule — writes to the correct local file automatically
+dotmd get hipaa
+dotmd get soc2
+dotmd get cli-ux
+
+# Fetch for a specific tool (overrides registry format)
+dotmd get hipaa cursor        # → .cursorrules
+dotmd get hipaa windsurf      # → .windsurfrules
+dotmd get hipaa claude        # → CLAUDE.md
+dotmd get hipaa copilot       # → .github/copilot-instructions.md
+
+# Print content to stdout (no file written — ideal for LLM agents)
+dotmd get cli-ux --print
+
+# Machine-readable JSON with full content (ideal for LLM agents)
+dotmd get cli-ux --json
 
 # Preview where a rule would be written without writing it
-dotmd get dotmd/react-best-practices --dry-run
+dotmd get hipaa --dry-run
+dotmd get hipaa --dry-run --json
 
 # Write to a custom path
-dotmd get dotmd/react-best-practices --output .cursorrules
+dotmd get hipaa --output .cursorrules
 
 # Overwrite an existing file
-dotmd get dotmd/react-best-practices --force
-
-# Machine-readable JSON output (useful for scripting and LLM tool use)
-dotmd get dotmd/react-best-practices --json
+dotmd get hipaa --force
 
 # Suppress all output
-dotmd get dotmd/react-best-practices --quiet
+dotmd get hipaa --quiet
 ```
+
+### LLM / agent usage
+
+dotmd is designed to be called by LLM agents (Claude, Cursor, Windsurf, Copilot, etc.) to pull instruction files into a project automatically.
+
+**Recommended patterns for LLM agents:**
+
+```bash
+# Read a rule without writing a file — use this to inspect content first
+dotmd get cli-ux --print
+
+# Get full structured data including content in one call
+dotmd get cli-ux --json
+# Returns: {"status": "saved", "content": "...", "destination": "...", "format_type": "..."}
+
+# Write a rule to the project — auto-overwrites in non-TTY environments
+dotmd get hipaa
+dotmd get hipaa cursor
+
+# Check what would be written before committing
+dotmd get hipaa --dry-run --json
+```
+
+**Key LLM-friendly behaviours:**
+
+- **Auto-overwrite in non-TTY**: When stdout is not a TTY (i.e. called by an LLM agent or script), `--force` is automatically enabled. You never need to add `--force` explicitly.
+- **`--print` flag**: Prints the rule content directly to stdout. No file is written. Use this when you want to read the content before deciding what to do with it.
+- **`--json` includes content**: The `--json` flag returns a `content` field with the full rule text, so you can read and write in a single command.
+- **Banner suppressed**: The ASCII art banner is automatically suppressed when stdout is not a TTY.
+- **`NO_COLOR=1`**: Set to disable all ANSI color codes ([no-color.org](https://no-color.org/)).
+- **Default namespace**: Bare titles (e.g. `dotmd get hipaa`) default to the `dotmd` registry namespace.
 
 ### Output file mapping
 
@@ -85,19 +130,67 @@ When you run `dotmd get`, the rule is written to the standard location for its f
 | `aider` | `.aider.conf.yml` |
 | `continue` | `.continue/config.json` |
 
-### JSON output
+Use `dotmd get <rule> <tool>` to override the destination regardless of the registry format.
 
-Every command supports `--json` for structured output:
+### Tool aliases
+
+| Tool name | Format | Written to |
+|-----------|--------|-----------|
+| `cursor` | `cursorrules` | `.cursorrules` |
+| `windsurf` | `windsurfrules` | `.windsurfrules` |
+| `claude` | `claude.md` | `CLAUDE.md` |
+| `copilot` | `copilot` | `.github/copilot-instructions.md` |
+| `cline` | `cline` | `.clinerules` |
+| `aider` | `aider` | `.aider.conf.yml` |
+| `gemini` | `gemini` | `GEMINI.md` |
+| `continue` | `continue` | `.continue/config.json` |
+
+### JSON output schema
 
 ```bash
-dotmd search react --json
-# {"results": [{"id": "...", "title": "react-best-practices", "username": "dotmd", ...}]}
+# dotmd get <rule> --json
+{
+  "status": "saved",
+  "rule": "hipaa",
+  "tool": null,
+  "username": "dotmd",
+  "title": "hipaa",
+  "format_type": "md",
+  "destination": "/path/to/project/AGENTS.md",
+  "bytes": 1234,
+  "content": "# HIPAA Compliance Rules\n..."
+}
 
-dotmd get dotmd/react-best-practices --json
-# {"title": "react-best-practices", "username": "dotmd", "destination": ".cursorrules", "written": true}
+# dotmd get <rule> --dry-run --json
+{
+  "dry_run": true,
+  "rule": "hipaa",
+  "tool": null,
+  "username": "dotmd",
+  "title": "hipaa",
+  "format_type": "md",
+  "destination": "/path/to/project/AGENTS.md",
+  "bytes": 1234,
+  "would_overwrite": false,
+  "content": "# HIPAA Compliance Rules\n..."
+}
 
-dotmd get dotmd/react-best-practices --dry-run --json
-# {"title": "react-best-practices", "username": "dotmd", "destination": ".cursorrules", "written": false}
+# dotmd search <keywords> --json
+{
+  "count": 3,
+  "keywords": ["hipaa"],
+  "results": [
+    {"title": "hipaa", "format_type": "md", "username": "dotmd"},
+    ...
+  ]
+}
+
+# dotmd list --json
+{
+  "count": 47,
+  "username": null,
+  "results": [...]
+}
 ```
 
 ### Exit codes
@@ -106,16 +199,8 @@ dotmd get dotmd/react-best-practices --dry-run --json
 |------|---------|
 | `0` | Success |
 | `1` | API or network error |
-| `2` | Usage error (bad arguments, file exists without `--force`, ambiguous title) |
-| `130` | Interrupted |
-
-### LLM / automation notes
-
-- When stdout is not a TTY (piped, redirected, or called by a tool), the ASCII art banner is automatically suppressed.
-- Set `NO_COLOR=1` to disable all ANSI color codes ([no-color.org](https://no-color.org/)).
-- Use `--json` for all structured output — the schema is stable.
-- Use `--dry-run` to check where a file would be written before committing.
-- Use `--quiet` to suppress all non-error output in scripts.
+| `2` | Usage error (bad arguments, file exists without `--force` in TTY mode) |
+| `130` | Interrupted (Ctrl+C) |
 
 ## Registry API
 
@@ -132,10 +217,11 @@ DOTMD_SUPABASE_ANON_KEY   # Supabase anon key (required for authenticated regist
 DOTMD_SUPABASE_BASE_URL   # Override the Supabase REST base URL
 DOTMD_API_KEY             # Alias for DOTMD_SUPABASE_ANON_KEY
 DOTMD_BASE_URL            # Alias for DOTMD_SUPABASE_BASE_URL
+NO_COLOR                  # Set to any value to disable color output
 ```
 
 ## Source
 
-- GitHub: https://github.com/dotmd/dotmd-cli
+- GitHub: https://github.com/dotmd-cli/dotmd-cli
 - PyPI: https://pypi.org/project/dotmd/
 - Registry: https://mydotmd.io
