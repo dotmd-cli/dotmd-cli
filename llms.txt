@@ -33,6 +33,7 @@ pip install dotmd
 ### Commands
 
 ```
+dotmd find <description>            Search + fetch best match → .dotmd/<title>.md  ← recommended for agents
 dotmd list                          List all public rules in the registry
 dotmd list <username>               List rules for a specific user
 dotmd search <keywords>             Search rules by keyword
@@ -45,6 +46,27 @@ dotmd info                          Show version, registry info, and supported f
 ### Examples
 
 ```bash
+# ── Recommended for LLM agents / agentic IDEs ──────────────────────────────
+
+# Find and fetch the best-matching rule in one command → writes to .dotmd/<title>.md
+dotmd find cli ux best practices    # → .dotmd/cli-ux.md
+dotmd find hipaa compliance         # → .dotmd/hipaa.md
+dotmd find react typescript         # → .dotmd/react-best-practices.md
+dotmd find testing                  # → .dotmd/testing.md
+dotmd find git workflow             # → .dotmd/git.md
+
+# Print content to stdout without writing a file (inspect before committing)
+dotmd find cli ux --print
+
+# Machine-readable JSON with full content + candidate list
+dotmd find cli ux --json
+
+# Preview destination without writing
+dotmd find hipaa --dry-run
+dotmd find hipaa --dry-run --json
+
+# ── Manual / power-user commands ───────────────────────────────────────────
+
 # Browse everything
 dotmd list
 
@@ -52,7 +74,7 @@ dotmd list
 dotmd search react typescript
 dotmd search hipaa compliance
 
-# Fetch a rule — writes to the correct local file automatically
+# Fetch a specific rule — writes to the correct local file automatically
 dotmd get hipaa
 dotmd get soc2
 dotmd get cli-ux
@@ -85,12 +107,48 @@ dotmd get hipaa --quiet
 
 ### LLM / agent usage
 
-dotmd is designed to be called by LLM agents (Claude, Cursor, Windsurf, Copilot, etc.) to pull instruction files into a project automatically.
+dotmd is designed to be called by LLM agents (Claude, Cursor, Windsurf, Copilot, etc.) to pull best-practice reference files into a project automatically.
 
-**Recommended patterns for LLM agents:**
+**The recommended command for agents is `dotmd find`:**
 
 ```bash
-# Read a rule without writing a file — use this to inspect content first
+# One-shot: describe what you need → best match is fetched and written to .dotmd/<title>.md
+dotmd find cli ux best practices
+dotmd find hipaa compliance
+dotmd find react typescript performance
+
+# Inspect content before writing
+dotmd find cli ux --print
+
+# Full structured response including content and candidate list
+dotmd find cli ux --json
+# Returns:
+# {
+#   "status": "saved",
+#   "keywords": ["cli", "ux"],
+#   "username": "dotmd",
+#   "title": "cli-ux",
+#   "format_type": "md",
+#   "destination": "/path/to/project/.dotmd/cli-ux.md",
+#   "bytes": 4321,
+#   "content": "# CLI UX Guidelines...",
+#   "candidates": [{"username": "dotmd", "title": "cli-ux", "format_type": "md"}, ...]
+# }
+
+# Preview without writing
+dotmd find hipaa --dry-run --json
+```
+
+**Why `dotmd find` instead of `dotmd get`?**
+
+- `dotmd find` accepts a natural-language description — no need to know the exact rule title.
+- It always writes to `.dotmd/<title>.md`, keeping reference context files separate from tool-specific instruction files (AGENTS.md, .cursorrules, etc.).
+- It returns a `candidates` list so the agent can see what else was found.
+
+**Other recommended patterns for LLM agents:**
+
+```bash
+# Read a specific rule without writing a file
 dotmd get cli-ux --print
 
 # Get full structured data including content in one call
@@ -107,9 +165,11 @@ dotmd get hipaa --dry-run --json
 
 **Key LLM-friendly behaviours:**
 
+- **`dotmd find` is the entry point**: Describe what you need in plain words; dotmd searches, picks the best match, and writes it to `.dotmd/<title>.md`.
 - **Auto-overwrite in non-TTY**: When stdout is not a TTY (i.e. called by an LLM agent or script), `--force` is automatically enabled. You never need to add `--force` explicitly.
 - **`--print` flag**: Prints the rule content directly to stdout. No file is written. Use this when you want to read the content before deciding what to do with it.
 - **`--json` includes content**: The `--json` flag returns a `content` field with the full rule text, so you can read and write in a single command.
+- **`.dotmd/` directory**: Rules fetched via `dotmd find` land in `.dotmd/<title>.md` — a dedicated folder for reference context that sits alongside AGENTS.md and similar files without overwriting them.
 - **Banner suppressed**: The ASCII art banner is automatically suppressed when stdout is not a TTY.
 - **`NO_COLOR=1`**: Set to disable all ANSI color codes ([no-color.org](https://no-color.org/)).
 - **Default namespace**: Bare titles (e.g. `dotmd get hipaa`) default to the `dotmd` registry namespace.

@@ -294,7 +294,7 @@ def get(
     if output:
         destination = output.expanduser()
     else:
-        relative_path = output_path_for_format(effective_format)
+        relative_path = output_path_for_format(effective_format, title=resolved_title)
         destination = Path.cwd() / relative_path
 
     if dry_run:
@@ -356,6 +356,237 @@ def get(
             f"  ✓ Saved {resolved_username}/{resolved_title} → {destination}  [{effective_format}]",
             fg=typer.colors.GREEN,
         )
+
+
+@app.command(name="find")
+def find_rule(
+    description: List[str] = typer.Argument(
+        ...,
+        help=(
+            "Natural-language description of what you need. "
+            "e.g. 'cli ux best practices' or 'hipaa compliance'"
+        ),
+    ),
+    output: Optional[Path] = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Write to this exact path instead of the default .dotmd/<title>.md destination.",
+        metavar="PATH",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        help=(
+            "Overwrite destination file if it already exists. "
+            "Automatically enabled when stdout is not a TTY (scripts, LLM agents, CI)."
+        ),
+    ),
+    print_only: bool = typer.Option(
+        False,
+        "--print",
+        help=(
+            "Print the rule content to stdout instead of writing a file. "
+            "Ideal for LLM agents and scripts that need to read the content directly."
+        ),
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview the destination path without writing any files.",
+    ),
+    limit: int = typer.Option(
+        5, "--limit", "-n", min=1, max=20, help="Number of search results to consider."
+    ),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Suppress non-error output."),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help=(
+            "Emit machine-readable JSON to stdout. "
+            "Includes 'content' field with the full rule text."
+        ),
+    ),
+) -> None:
+    """Search for a rule by description and fetch the best match into .dotmd/<title>.md.
+
+    This is the recommended command for LLM agents and agentic IDEs (Cursor, Windsurf,
+    Claude, Copilot, etc.) to pull best-practice reference files into a project.
+
+    The rule is written to .dotmd/<title>.md so it sits alongside other context files
+    without overwriting tool-specific instruction files like AGENTS.md or .cursorrules.
+
+    \b
+    LLM / agent usage:
+      dotmd find cli ux best practices        Fetch best match → .dotmd/cli-ux.md
+      dotmd find hipaa compliance --print     Print content to stdout (no file written)
+      dotmd find react typescript --json      JSON with full content field
+      dotmd find testing --dry-run            Preview destination without writing
+
+    \b
+    Examples:
+      dotmd find cli ux best practices
+      dotmd find hipaa compliance
+      dotmd find react typescript performance
+      dotmd find git workflow
+      dotmd find testing best practices --print
+      dotmd find security --json
+      dotmd find docs --dry-run
+    """
+    # In non-TTY environments (LLM agents, scripts, CI), auto-enable --force.
+    effective_force = force or not _is_tty()
+
+    api = DotmdAPI()
+
+    # Search for matching rules using the description words as keywords.
+    rows: List[Dict[str, Any]] = []
+    try:
+        rows = api.search_rules(description, limit=limit)
+    except DotmdAPIError as exc:
+        _exit_with_api_error(exc)
+
+    if not rows:
+        keywords_str = " ".join(description)
+        if json_output:
+            _print_json(
+                {
+                    "status": "not_found",
+                    "keywords": description,
+                    "message": f"No rules found matching: {keywords_str}",
+                }
+            )
+            raise typer.Exit(code=1)
+        _exit_with_error(
+            f"No rules found matching: {keywords_str}\n"
+            f"  Try: dotmd search {keywords_str}\n"
+            f"  Or browse all rules: dotmd list",
+            code=1,
+        )
+
+    # Pick the best match: prefer exact title match, otherwise take the first result.
+    keywords_joined = "-".join(w.strip().lower() for w in description if w.strip())
+    best_row = rows[0]
+    for row in rows:
+        row_title = str(row.get("title", "")).lower().strip()
+        if row_title == keywords_joined or row_title == keywords_joined.replace("-", " "):
+            best_row = row
+            break
+
+    best_title: str = str(best_row.get("title", "")).strip()
+    best_username: str = str(best_row.get("username", DEFAULT_USERNAME)).strip() or DEFAULT_USERNAME
+
+    # Fetch the full rule content.
+    record: Any = None
+    try:
+        with _progress(
+            enabled=not quiet and not json_output and not print_only,
+            length=2,
+            label=f"Fetching {best_username}/{best_title}",
+        ) as progress:
+            user_id = api.resolve_username(best_username)
+            progress.update(1)
+            record = api.get_rule(user_id, best_title)
+            progress.update(1)
+    except DotmdAPIError as exc:
+        _exit_with_api_error(exc)
+
+    # --print: dump content to stdout and exit — no file written.
+    if print_only:
+        typer.echo(record.content, nl=False)
+        return
+
+    # Determine destination: --output overrides, otherwise always .dotmd/<title>.md.
+    if output:
+        destination = output.expanduser()
+    else:
+        from .formats import _safe_filename
+        safe_name = _safe_filename(best_title)
+        destination = Path.cwd() / ".dotmd" / f"{safe_name}.md"
+
+    if dry_run:
+        if json_output:
+            _print_json(
+                {
+                    "dry_run": True,
+                    "keywords": description,
+                    "username": best_username,
+                    "title": best_title,
+                    "format_type": record.format_type,
+                    "destination": str(destination),
+                    "bytes": len(record.content.encode("utf-8")),
+                    "would_overwrite": destination.exists(),
+                    "content": record.content,
+                    "candidates": [
+                        {
+                            "username": str(r.get("username", "")),
+                            "title": str(r.get("title", "")),
+                            "format_type": str(r.get("format_type", "")),
+                        }
+                        for r in rows
+                    ],
+                }
+            )
+        else:
+            typer.echo(f"  keywords:    {' '.join(description)}")
+            typer.echo(f"  best match:  {best_username}/{best_title}")
+            typer.echo(f"  destination: {destination}")
+            typer.echo(f"  size:        {len(record.content.encode('utf-8'))} bytes")
+            if len(rows) > 1:
+                typer.echo(f"  other candidates ({len(rows) - 1}):")
+                for row in rows[1:]:
+                    row_u = str(row.get("username", ""))
+                    row_t = str(row.get("title", ""))
+                    typer.echo(f"    {row_u}/{row_t}")
+            if destination.exists():
+                typer.secho(
+                    f"  warning:     destination exists — use --force to overwrite",
+                    fg=typer.colors.YELLOW,
+                )
+        return
+
+    if destination.exists() and not effective_force:
+        _exit_with_error(
+            f"Destination already exists: {destination}\n"
+            f"  Use --force to overwrite, or --output to choose a different path.",
+            code=2,
+        )
+
+    _write_output(destination, record.content)
+
+    if json_output:
+        _print_json(
+            {
+                "status": "saved",
+                "keywords": description,
+                "username": best_username,
+                "title": best_title,
+                "format_type": record.format_type,
+                "destination": str(destination),
+                "bytes": len(record.content.encode("utf-8")),
+                "content": record.content,
+                "candidates": [
+                    {
+                        "username": str(r.get("username", "")),
+                        "title": str(r.get("title", "")),
+                        "format_type": str(r.get("format_type", "")),
+                    }
+                    for r in rows
+                ],
+            }
+        )
+        return
+
+    if not quiet:
+        typer.secho(
+            f"  ✓ Saved {best_username}/{best_title} → {destination}",
+            fg=typer.colors.GREEN,
+        )
+        if len(rows) > 1:
+            typer.echo(
+                f"  Tip: {len(rows) - 1} other candidate(s) found — "
+                f"run 'dotmd search {' '.join(description)}' to see all."
+            )
 
 
 @app.command(name="search")
@@ -488,7 +719,7 @@ def info(
     payload: Dict[str, Any] = {
         "version": __version__,
         "registry": "https://mydotmd.io",
-        "commands": ["get", "search", "list", "info"],
+        "commands": ["find", "get", "search", "list", "info"],
         "formats": FORMAT_TO_PATH,
         "config": {
             "base_url": api.base_url,
@@ -544,6 +775,7 @@ def main(
 
     \b
     Quick start:
+      dotmd find cli ux best practices
       dotmd list
       dotmd search react typescript
       dotmd get dotmd/react-best-practices

@@ -153,6 +153,57 @@ def test_get_command_tool_arg_windsurf(monkeypatch: Any) -> None:
         assert Path(".windsurfrules").exists()
 
 
+def test_get_command_md_format_writes_to_dotmd_subdir(monkeypatch: Any) -> None:
+    """md format rules write to .dotmd/<title>.md, not AGENTS.md."""
+    class MdStubAPI(StubAPI):
+        def get_rule(self, user_id: str, title: str) -> Any:
+            class Rule:
+                content = "# CLI UX Guidelines"
+                format_type = "md"
+            return Rule()
+
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", MdStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["get", "dotmd/cli-ux"])
+        assert result.exit_code == 0, result.output
+        expected = Path(".dotmd/cli-ux.md")
+        assert expected.exists(), f"Expected {expected} to exist"
+        assert "# CLI UX Guidelines" in expected.read_text(encoding="utf-8")
+        assert not Path("AGENTS.md").exists(), "AGENTS.md should not be created for md format"
+
+
+def test_get_command_md_format_multiple_rules_no_overwrite(monkeypatch: Any) -> None:
+    """Multiple md format rules each get their own file under .dotmd/."""
+    titles_written: list = []
+
+    class MultiMdStubAPI:
+        def resolve_username(self, username: str) -> str:
+            return "user-123"
+
+        def get_rule(self, user_id: str, title: str) -> Any:
+            titles_written.append(title)
+
+            class Rule:
+                content = f"# {title}"
+                format_type = "md"
+            return Rule()
+
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", MultiMdStubAPI)
+
+    with runner.isolated_filesystem():
+        for rule in ["cli-ux", "testing", "git"]:
+            result = runner.invoke(app, ["get", f"dotmd/{rule}"])
+            assert result.exit_code == 0, result.output
+
+        assert Path(".dotmd/cli-ux.md").exists()
+        assert Path(".dotmd/testing.md").exists()
+        assert Path(".dotmd/git.md").exists()
+        assert "# cli-ux" in Path(".dotmd/cli-ux.md").read_text(encoding="utf-8")
+        assert "# testing" in Path(".dotmd/testing.md").read_text(encoding="utf-8")
+        assert "# git" in Path(".dotmd/git.md").read_text(encoding="utf-8")
+
+
 def test_get_command_tool_arg_invalid(monkeypatch: Any) -> None:
     """dotmd get <rule> badtool  →  exits with error."""
     monkeypatch.setattr("dotmd.cli.DotmdAPI", StubAPI)
@@ -497,5 +548,191 @@ def test_list_help() -> None:
     result = runner.invoke(app, ["list", "--help"])
     assert result.exit_code == 0, result.output
     assert "--limit" in _strip_ansi(result.stdout)
+
+# ── find command ─────────────────────────────────────────────────────────────
+
+
+class FindStubAPI:
+    """Stub API for dotmd find tests."""
+
+    def resolve_username(self, username: str) -> str:
+        assert username == "dotmd"
+        return "user-123"
+
+    def get_rule(self, user_id: str, title: str) -> Any:
+        assert user_id == "user-123"
+
+        class Rule:
+            content = "# CLI UX Guidelines"
+            format_type = "md"
+
+        return Rule()
+
+    def search_rules(self, keywords: Any, limit: int = 5) -> List[Dict[str, Any]]:
+        return [
+            {
+                "title": "cli-ux",
+                "format_type": "md",
+                "username": "dotmd",
+            }
+        ]
+
+    def list_rules(self, username: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+        return []
+
+
+def test_find_command_writes_to_dotmd_subdir(monkeypatch: Any) -> None:
+    """dotmd find <description> writes the best match to .dotmd/<title>.md."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", FindStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["find", "cli", "ux", "best", "practices"])
+        assert result.exit_code == 0, result.output
+        expected = Path(".dotmd/cli-ux.md")
+        assert expected.exists(), f"Expected {expected} to exist"
+        assert "# CLI UX Guidelines" in expected.read_text(encoding="utf-8")
+
+
+def test_find_command_print_flag(monkeypatch: Any) -> None:
+    """dotmd find --print outputs content to stdout without writing a file."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", FindStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["find", "cli", "ux", "--print"])
+        assert result.exit_code == 0, result.output
+        assert "# CLI UX Guidelines" in result.stdout
+        assert not Path(".dotmd/cli-ux.md").exists()
+
+
+def test_find_command_json_includes_content_and_candidates(monkeypatch: Any) -> None:
+    """dotmd find --json includes content and candidates fields."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", FindStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["find", "cli", "ux", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.stdout)
+        assert data["status"] == "saved"
+        assert "content" in data
+        assert "# CLI UX Guidelines" in data["content"]
+        assert "candidates" in data
+        assert isinstance(data["candidates"], list)
+        assert data["title"] == "cli-ux"
+        assert data["username"] == "dotmd"
+        assert ".dotmd/cli-ux.md" in data["destination"]
+
+
+def test_find_command_dry_run(monkeypatch: Any) -> None:
+    """dotmd find --dry-run shows destination without writing."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", FindStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["find", "cli", "ux", "--dry-run"])
+        assert result.exit_code == 0, result.output
+        assert ".dotmd" in result.stdout
+        assert not Path(".dotmd/cli-ux.md").exists()
+
+
+def test_find_command_dry_run_json(monkeypatch: Any) -> None:
+    """dotmd find --dry-run --json includes content and would_overwrite."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", FindStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["find", "cli", "ux", "--dry-run", "--json"])
+        assert result.exit_code == 0, result.output
+        data = json.loads(result.stdout)
+        assert data["dry_run"] is True
+        assert "content" in data
+        assert "candidates" in data
+        assert data["would_overwrite"] is False
+        assert not Path(".dotmd/cli-ux.md").exists()
+
+
+def test_find_command_no_results(monkeypatch: Any) -> None:
+    """dotmd find exits with error when no rules match."""
+
+    class EmptyFindStubAPI(FindStubAPI):
+        def search_rules(self, keywords: Any, limit: int = 5) -> List[Dict[str, Any]]:
+            return []
+
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", EmptyFindStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["find", "xyzzy", "nonexistent"])
+        assert result.exit_code == 1
+        assert "No rules found" in result.stderr
+
+
+def test_find_command_no_results_json(monkeypatch: Any) -> None:
+    """dotmd find --json emits not_found status when no rules match."""
+
+    class EmptyFindStubAPI(FindStubAPI):
+        def search_rules(self, keywords: Any, limit: int = 5) -> List[Dict[str, Any]]:
+            return []
+
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", EmptyFindStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["find", "xyzzy", "--json"])
+        assert result.exit_code == 1
+        data = json.loads(result.stdout)
+        assert data["status"] == "not_found"
+
+
+def test_find_command_auto_force_in_non_tty(monkeypatch: Any) -> None:
+    """In non-TTY mode, dotmd find auto-overwrites existing .dotmd/<title>.md."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", FindStubAPI)
+
+    with runner.isolated_filesystem():
+        Path(".dotmd").mkdir()
+        Path(".dotmd/cli-ux.md").write_text("existing", encoding="utf-8")
+        result = runner.invoke(app, ["find", "cli", "ux"])
+        assert result.exit_code == 0, result.output
+        assert "# CLI UX Guidelines" in Path(".dotmd/cli-ux.md").read_text(encoding="utf-8")
+
+
+def test_find_command_refuses_overwrite_in_tty(monkeypatch: Any) -> None:
+    """In TTY mode, dotmd find blocks overwrite without --force."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", FindStubAPI)
+    monkeypatch.setattr("dotmd.cli._is_tty", lambda: True)
+
+    with runner.isolated_filesystem():
+        Path(".dotmd").mkdir()
+        Path(".dotmd/cli-ux.md").write_text("existing", encoding="utf-8")
+        result = runner.invoke(app, ["find", "cli", "ux"])
+        assert result.exit_code == 2
+        assert "Use --force to overwrite" in result.stderr
+
+
+def test_find_command_custom_output(monkeypatch: Any) -> None:
+    """dotmd find --output writes to the specified path."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", FindStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["find", "cli", "ux", "--output", "custom/cli-ux.md"])
+        assert result.exit_code == 0, result.output
+        assert Path("custom/cli-ux.md").exists()
+        assert "# CLI UX Guidelines" in Path("custom/cli-ux.md").read_text(encoding="utf-8")
+
+
+def test_find_command_quiet(monkeypatch: Any) -> None:
+    """dotmd find --quiet suppresses non-error output."""
+    monkeypatch.setattr("dotmd.cli.DotmdAPI", FindStubAPI)
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(app, ["find", "cli", "ux", "--quiet"])
+        assert result.exit_code == 0, result.output
+        assert result.stdout.strip() == ""
+
+
+def test_find_help_shows_options() -> None:
+    result = runner.invoke(app, ["find", "--help"])
+    assert result.exit_code == 0, result.output
+    stdout = _strip_ansi(result.stdout)
+    assert "--dry-run" in stdout
+    assert "--print" in stdout
+    assert "--json" in stdout
+    assert "--output" in stdout
+
 
 # Made with Bob

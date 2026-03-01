@@ -24,6 +24,7 @@ Fetch and share the AI instruction files that power your coding assistants.
 - [Install](#install)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
+  - [find](#dotmd-find) ← recommended for agents
   - [get](#dotmd-get)
   - [search](#dotmd-search)
   - [list](#dotmd-list)
@@ -54,13 +55,17 @@ dotmd --version
 ## Quick Start
 
 ```bash
+# Find and fetch a rule by description — the recommended one-liner for agents
+dotmd find cli ux best practices    # → .dotmd/cli-ux.md
+dotmd find hipaa compliance         # → .dotmd/hipaa.md
+
 # Browse what's available
 dotmd list
 
 # Search by keyword
 dotmd search react typescript
 
-# Fetch a rule into your project
+# Fetch a specific rule into your project
 dotmd get dotmd/react-best-practices
 
 # See where it was written
@@ -70,6 +75,51 @@ dotmd info
 ---
 
 ## Commands
+
+### `dotmd find`
+
+Search the registry by natural-language description and fetch the best-matching rule into `.dotmd/<title>.md`. This is the recommended command for LLM agents and agentic IDEs (Cursor, Windsurf, Claude, Copilot, etc.).
+
+Rules are written to `.dotmd/<title>.md` so they sit alongside other context files without overwriting tool-specific instruction files like `AGENTS.md` or `.cursorrules`.
+
+```bash
+# Describe what you need — dotmd finds and fetches the best match
+dotmd find cli ux best practices    # → .dotmd/cli-ux.md
+dotmd find hipaa compliance         # → .dotmd/hipaa.md
+dotmd find react typescript         # → .dotmd/react-best-practices.md
+dotmd find testing                  # → .dotmd/testing.md
+dotmd find git workflow             # → .dotmd/git.md
+
+# Print content to stdout without writing a file
+dotmd find cli ux --print
+
+# Machine-readable JSON with full content and candidate list
+dotmd find cli ux --json
+
+# Preview destination without writing
+dotmd find hipaa --dry-run
+dotmd find hipaa --dry-run --json
+
+# Write to a custom path
+dotmd find hipaa --output .cursorrules
+
+# Suppress all output (useful in scripts)
+dotmd find hipaa --quiet
+```
+
+**Options:**
+
+| Flag | Short | Description |
+|------|-------|-------------|
+| `--output PATH` | `-o` | Write to a specific path instead of `.dotmd/<title>.md` |
+| `--force` | `-f` | Overwrite destination if it already exists |
+| `--dry-run` | | Preview destination without writing |
+| `--print` | | Print content to stdout, no file written |
+| `--limit N` | `-n` | Number of search candidates to consider (default: 5) |
+| `--quiet` | `-q` | Suppress non-error output |
+| `--json` | | Emit JSON to stdout (includes `content` and `candidates` fields) |
+
+---
 
 ### `dotmd get`
 
